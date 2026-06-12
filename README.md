@@ -4,7 +4,7 @@
 
 <br>
 
-*Encrypted with [age](https://github.com/FiloSottile/age) • R2 / S3 / GCS supported*
+*Encrypted with [age](https://github.com/FiloSottile/age) • R2 / S3 / GCS / WebDAV supported*
 
 [![Release](https://img.shields.io/github/v/release/tawanorg/claude-sync)](https://github.com/tawanorg/claude-sync/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -20,7 +20,7 @@
 ## Features
 
 - **Cross-device sync**: Continue Claude Code conversations on any laptop
-- **Multi-provider storage**: Cloudflare R2, AWS S3, or Google Cloud Storage
+- **Multi-provider storage**: Cloudflare R2, AWS S3, Google Cloud Storage, or WebDAV (Nextcloud, ownCloud)
 - **End-to-end encryption**: All files encrypted with age before upload
 - **Passphrase-based keys**: Same passphrase = same key on any device (no file copying)
 - **Interactive wizard**: Arrow-key driven setup with validation
@@ -56,7 +56,7 @@ npm install -g @tawandotorg/claude-sync
 
 # Set up with SAME storage credentials
 claude-sync init
-# Select same provider (R2/S3/GCS)
+# Select same provider (R2/S3/GCS/WebDAV)
 # Enter same bucket name and credentials
 # Choose "Passphrase" for encryption
 # Enter the SAME passphrase as first device
@@ -81,6 +81,7 @@ claude-sync pull
 | **AWS S3** | 5GB (12 months) | AWS users |
 | **Google Cloud Storage** | 5GB | GCP users |
 | **S3-compatible** | varies | Backblaze B2, MinIO, Wasabi, DigitalOcean Spaces, self-hosted |
+| **WebDAV** | Self-hosted (unlimited) | Nextcloud/ownCloud users |
 
 ### Step 2: Create a Bucket
 
@@ -131,6 +132,19 @@ You'll need: Endpoint URL, Access Key ID, Secret Access Key, Bucket. The signing
 > Custom endpoints automatically relax the AWS SDK's default integrity-checksum headers, which some S3-compatible providers reject. AWS S3 behavior is unchanged.
 </details>
 
+<details>
+<summary><b>WebDAV (Nextcloud, ownCloud, etc.)</b></summary>
+
+No bucket to create — just point at your existing WebDAV server.
+
+1. **Nextcloud**: Go to Settings → Security → Devices & sessions → Create app password
+2. Note your WebDAV URL: `https://your-server/remote.php/dav/files/USERNAME/`
+
+You'll need: WebDAV URL, Username, App password
+
+The wizard will create a `claude-sync` subdirectory automatically.
+</details>
+
 ### Step 3: Run Init
 
 ```bash
@@ -139,7 +153,7 @@ claude-sync init
 
 The interactive wizard will guide you through:
 
-1. **Select storage provider** (R2, S3, or GCS)
+1. **Select storage provider** (R2, S3, GCS, or WebDAV)
 2. **Enter credentials** (provider-specific)
 3. **Choose encryption method**:
    - **Passphrase** (recommended) - same passphrase on all devices = same key
@@ -396,6 +410,7 @@ Claude sessions typically use < 50MB. Syncing is effectively **free** on any pro
 | **Cloudflare R2** | 10GB storage, 1M writes, 10M reads/month |
 | **AWS S3** | 5GB for 12 months (then ~$0.023/GB) |
 | **Google Cloud Storage** | 5GB, 5K writes, 50K reads/month |
+| **WebDAV** | Self-hosted — no limits, no cost beyond your own server |
 
 ## Installation Options
 
