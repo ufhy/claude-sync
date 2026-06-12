@@ -19,6 +19,12 @@ const (
 	// MCPRemoteKey is the remote storage key for synced MCP server configs.
 	// The _external/ prefix separates it from ~/.claude/-relative files.
 	MCPRemoteKey = "_external/mcp-servers.json"
+
+	// Sync scopes control which subset of ~/.claude is synced.
+	// ScopeFull (default) syncs everything in SyncPaths; ScopeSessions limits
+	// syncing to portable conversation data only.
+	ScopeFull     = "full"
+	ScopeSessions = "sessions"
 )
 
 type Config struct {
@@ -37,6 +43,10 @@ type Config struct {
 
 	// Exclude patterns (glob-style) for paths to skip during sync
 	Exclude []string `yaml:"exclude,omitempty"`
+
+	// Scope selects which subset of ~/.claude to sync: "full" (default, empty)
+	// or "sessions" (portable conversation data only). See ScopedSyncPaths.
+	Scope string `yaml:"scope,omitempty"`
 
 	// MCPSync enables syncing MCP server configs from ~/.claude.json
 	MCPSync bool `yaml:"mcp_sync,omitempty"`
@@ -62,7 +72,7 @@ type Config struct {
 	ClaudeJSONOverride string `yaml:"-"`
 }
 
-// SyncPaths defines which paths under ~/.claude to sync
+// SyncPaths defines which paths under ~/.claude to sync in the default "full" scope.
 var SyncPaths = []string{
 	"CLAUDE.md",
 	"settings.json",
@@ -76,6 +86,27 @@ var SyncPaths = []string{
 	"tasks",
 	"history.jsonl",
 	"rules",
+}
+
+// SessionSyncPaths is the subset synced in the "sessions" scope: portable,
+// high-value conversation data and its per-project work state. It deliberately
+// excludes plugins/ (which bundles non-portable node_modules and .venv trees),
+// along with machine-specific settings, skills, agents, and commands.
+var SessionSyncPaths = []string{
+	"projects",
+	"history.jsonl",
+	"tasks",
+	"plans",
+}
+
+// ScopedSyncPaths returns the sync path set for the given scope. "sessions"
+// limits syncing to SessionSyncPaths; "full", empty, or any unrecognized value
+// returns the complete SyncPaths so existing configs keep their behavior.
+func ScopedSyncPaths(scope string) []string {
+	if scope == ScopeSessions {
+		return SessionSyncPaths
+	}
+	return SyncPaths
 }
 
 func ConfigDirPath() string {

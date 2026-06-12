@@ -172,6 +172,21 @@ claude-sync pull
 | `~/.claude/settings.local.json` | Local settings |
 | `~/.claude/CLAUDE.md` | Global instructions |
 
+### Sync scope
+
+`init` asks whether to sync everything or just conversation data; you can also set it with `--scope`:
+
+| Scope | Syncs | Use when |
+|-------|-------|----------|
+| `full` (default) | everything in the table above | you want settings, skills, agents, and plugins mirrored too |
+| `sessions` | `projects/`, `history.jsonl`, `tasks/`, `plans/` only | you just want `claude --resume` to work across machines |
+
+```bash
+claude-sync init --scope sessions
+```
+
+**Why `sessions` exists:** `full` includes `plugins/`, whose plugin caches bundle `node_modules` and Python `.venv` trees — thousands of large, machine-/arch-specific files that are regenerated on demand and should not be synced. `sessions` skips them, keeping syncs small, fast, and portable. The scope is saved in `~/.claude-sync/config.yaml` and applies to every `push`/`pull`.
+
 ## Cross-Device Path Mapping
 
 Claude Code indexes project sessions by **absolute filesystem path**:

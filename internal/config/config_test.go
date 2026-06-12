@@ -3,11 +3,36 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/tawanorg/claude-sync/internal/storage"
 )
+
+func TestScopedSyncPaths(t *testing.T) {
+	t.Run("sessions scope is limited to portable session data", func(t *testing.T) {
+		got := ScopedSyncPaths("sessions")
+		want := []string{"projects", "history.jsonl", "tasks", "plans"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("ScopedSyncPaths(\"sessions\") = %v, want %v", got, want)
+		}
+		for _, p := range got {
+			if p == "plugins" {
+				t.Fatal("sessions scope must never include plugins (bundles node_modules/.venv)")
+			}
+		}
+	})
+
+	t.Run("full, empty, and unknown scopes return the complete SyncPaths", func(t *testing.T) {
+		for _, scope := range []string{"full", "", "bogus"} {
+			got := ScopedSyncPaths(scope)
+			if !reflect.DeepEqual(got, SyncPaths) {
+				t.Errorf("ScopedSyncPaths(%q) = %v, want full SyncPaths %v", scope, got, SyncPaths)
+			}
+		}
+	})
+}
 
 func TestConfigDirPath(t *testing.T) {
 	path := ConfigDirPath()

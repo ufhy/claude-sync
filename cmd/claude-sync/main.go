@@ -112,6 +112,7 @@ func printWarning(text string) {
 
 func initCmd() *cobra.Command {
 	var provider, bucket string
+	var scope string
 	var usePassphrase, force bool
 
 	// R2 flags
@@ -155,12 +156,13 @@ Examples:
 			}
 
 			// Normal flow: full setup
-			return initFullSetup(ctx, keyPath, provider, bucket, accountID, accessKey, secretKey, s3Region, s3Endpoint, gcsProjectID, gcsCredentialsFile, usePassphrase, force)
+			return initFullSetup(ctx, keyPath, provider, bucket, accountID, accessKey, secretKey, s3Region, s3Endpoint, gcsProjectID, gcsCredentialsFile, scope, usePassphrase, force)
 		},
 	}
 
 	// Provider selection
 	cmd.Flags().StringVar(&provider, "provider", "", "Storage provider: r2, s3, gcs, or s3-compatible")
+	cmd.Flags().StringVar(&scope, "scope", "", "Sync scope: 'full' (default, everything) or 'sessions' (conversation history only)")
 	cmd.Flags().StringVar(&bucket, "bucket", "", "Bucket name")
 	cmd.Flags().BoolVar(&usePassphrase, "passphrase", false, "Derive encryption key from passphrase")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Overwrite existing config/key without prompting")
@@ -224,8 +226,36 @@ func initPassphraseOnly(ctx context.Context, keyPath string) error {
 	return nil
 }
 
+// resolveScope validates a --scope value, prompting interactively when empty.
+// Returns "full" or "sessions". "sessions" syncs only portable conversation
+// data; "full" syncs everything (the historical default).
+func resolveScope(scope string) (string, error) {
+	switch scope {
+	case config.ScopeFull, config.ScopeSessions:
+		return scope, nil
+	case "":
+		prompt := &survey.Select{
+			Message: "What should be synced?",
+			Options: []string{
+				"Sessions only — conversation history (recommended for syncing across machines)",
+				"Everything — settings, plugins, skills, agents, and sessions",
+			},
+		}
+		var c int
+		if err := survey.AskOne(prompt, &c); err != nil {
+			return "", err
+		}
+		if c == 0 {
+			return config.ScopeSessions, nil
+		}
+		return config.ScopeFull, nil
+	default:
+		return "", fmt.Errorf("invalid --scope %q (use \"full\" or \"sessions\")", scope)
+	}
+}
+
 // initFullSetup handles the full init wizard
-func initFullSetup(ctx context.Context, keyPath, provider, bucket, accountID, accessKey, secretKey, s3Region, s3Endpoint, gcsProjectID, gcsCredentialsFile string, usePassphrase, force bool) error {
+func initFullSetup(ctx context.Context, keyPath, provider, bucket, accountID, accessKey, secretKey, s3Region, s3Endpoint, gcsProjectID, gcsCredentialsFile, scope string, usePassphrase, force bool) error {
 	if config.Exists() && !force {
 		var overwrite bool
 		prompt := &survey.Confirm{
@@ -407,10 +437,19 @@ skipKeyGen:
 		printSuccess("Encryption key verified")
 	}
 
+	// Resolve sync scope (prompts if not provided via --scope)
+	scope, err = resolveScope(scope)
+	if err != nil {
+		return err
+	}
+
 	// Save config
 	cfg := &config.Config{
 		Storage:       storageCfg,
 		EncryptionKey: "~/.claude-sync/age-key.txt",
+	}
+	if scope == config.ScopeSessions {
+		cfg.Scope = config.ScopeSessions
 	}
 
 	if err := config.Save(cfg); err != nil {
@@ -980,7 +1019,7 @@ Examples:
 
 			// Check for first pull with existing local files
 			if !syncer.HasState() {
-				hasExisting, err := hasExistingClaudeFiles()
+				hasExisting, err := hasExistingClaudeFiles(cfg.Scope)
 				if err != nil {
 					return err
 				}
@@ -2012,13 +2051,13 @@ func clearRemoteStorage(ctx context.Context, store storage.Storage) error {
 }
 
 // hasExistingClaudeFiles checks if ~/.claude has any files that would be synced
-func hasExistingClaudeFiles() (bool, error) {
+func hasExistingClaudeFiles(scope string) (bool, error) {
 	claudeDir := config.ClaudeDir()
 	if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
 		return false, nil
 	}
 
-	files, err := sync.GetLocalFiles(claudeDir, config.SyncPaths)
+	files, err := sync.GetLocalFiles(claudeDir, config.ScopedSyncPaths(scope))
 	if err != nil {
 		return false, err
 	}
@@ -2102,7 +2141,7 @@ func handleFirstPullWithExistingFiles(ctx context.Context, syncer *sync.Syncer, 
 	switch choice {
 	case 0:
 		// Backup and proceed
-		backupDir, err := createBackup()
+		backupDir, err := createBackup(syncer.Scope())
 		if err != nil {
 			return fmt.Errorf("failed to create backup: %w", err)
 		}
@@ -2123,7 +2162,7 @@ func handleFirstPullWithExistingFiles(ctx context.Context, syncer *sync.Syncer, 
 }
 
 // createBackup creates a backup of the current ~/.claude directory
-func createBackup() (string, error) {
+func createBackup(scope string) (string, error) {
 	claudeDir := config.ClaudeDir()
 	timestamp := time.Now().Format("20060102-150405")
 	backupDir := claudeDir + ".backup." + timestamp
@@ -2134,7 +2173,7 @@ func createBackup() (string, error) {
 	}
 
 	// Copy all syncable files to backup
-	files, err := sync.GetLocalFiles(claudeDir, config.SyncPaths)
+	files, err := sync.GetLocalFiles(claudeDir, config.ScopedSyncPaths(scope))
 	if err != nil {
 		return "", fmt.Errorf("failed to list files: %w", err)
 	}
