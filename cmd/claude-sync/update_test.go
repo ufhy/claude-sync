@@ -87,7 +87,7 @@ def456  claude-sync-linux-arm64
 			// Create a test server that serves the checksums.txt
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(tt.checksumTxt))
+				_, _ = w.Write([]byte(tt.checksumTxt))
 			}))
 			defer server.Close()
 

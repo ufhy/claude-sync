@@ -159,7 +159,7 @@ func TestUploadError(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("server error"))
+		_, _ = w.Write([]byte("server error"))
 	}))
 	defer server.Close()
 
@@ -190,7 +190,7 @@ func TestDownload(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write(expectedData)
+		_, _ = w.Write(expectedData)
 	}))
 	defer server.Close()
 
@@ -337,7 +337,7 @@ func TestList(t *testing.T) {
 			t.Errorf("expected Depth: infinity, got: %s", r.Header.Get("Depth"))
 		}
 		w.WriteHeader(207)
-		w.Write([]byte(propfindResponse))
+		_, _ = w.Write([]byte(propfindResponse))
 	}))
 	defer server.Close()
 
@@ -410,7 +410,7 @@ func TestHead(t *testing.T) {
 			t.Errorf("Head should use Depth: 0, got: %s", r.Header.Get("Depth"))
 		}
 		w.WriteHeader(207)
-		w.Write([]byte(propfindResponse))
+		_, _ = w.Write([]byte(propfindResponse))
 	}))
 	defer server.Close()
 
