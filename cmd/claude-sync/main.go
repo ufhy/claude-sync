@@ -984,7 +984,7 @@ func runWebDAVWizard(webdavURL, username, password, pathPrefix string) (*storage
 		Provider:       storage.ProviderWebDAV,
 		Bucket:         answers.PathPrefix,
 		WebDAVURL:      answers.URL,
-		WebDAVUsername:  answers.Username,
+		WebDAVUsername: answers.Username,
 		WebDAVPassword: answers.Password,
 		PathPrefix:     answers.PathPrefix,
 	}
