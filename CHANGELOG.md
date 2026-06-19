@@ -1,3 +1,15 @@
+# [1.12.0](https://github.com/tawanorg/claude-sync/compare/v1.11.1...v1.12.0) (2026-06-19)
+
+
+### Bug Fixes
+
+* implement proper globstar (**) pattern matching in exclude patterns ([5e69f77](https://github.com/tawanorg/claude-sync/commit/5e69f77986dab8ca0cf6f81efb3c8870586d8479)), closes [#43](https://github.com/tawanorg/claude-sync/issues/43)
+
+
+### Features
+
+* preserve file modification timestamps across devices on pull ([3b13503](https://github.com/tawanorg/claude-sync/commit/3b135036cc11f8198cefaeb256d02ba8b1e95dd3)), closes [#41](https://github.com/tawanorg/claude-sync/issues/41)
+
 ## [1.11.1](https://github.com/tawanorg/claude-sync/compare/v1.11.0...v1.11.1) (2026-06-12)
 
 
