@@ -26,6 +26,19 @@ import (
 
 const defaultWorkers = 10
 
+// ManifestKey is the remote storage key for file metadata (mtimes).
+const ManifestKey = "_metadata/manifest.json"
+
+// FileManifest stores metadata about synced files, primarily mtimes.
+type FileManifest struct {
+	Files map[string]FileMetadata `json:"files"`
+}
+
+// FileMetadata stores metadata for a single file.
+type FileMetadata struct {
+	ModTime time.Time `json:"mod_time"`
+}
+
 type Syncer struct {
 	storage    storage.Storage
 	encryptor  *crypto.Encryptor
@@ -237,6 +250,14 @@ func (s *Syncer) Push(ctx context.Context) (*SyncResult, error) {
 
 	s.progress(ProgressEvent{Action: "upload", Complete: true, Total: total})
 
+	// Upload manifest with file mtimes for cross-device mtime preservation
+	if len(result.Uploaded) > 0 || len(result.Deleted) > 0 {
+		if err := s.uploadManifest(ctx); err != nil {
+			// Log but don't fail - manifest is best-effort
+			s.log("Warning: failed to upload manifest: %v", err)
+		}
+	}
+
 	s.state.LastPush = time.Now()
 	s.state.LastSync = time.Now()
 	if err := s.state.Save(); err != nil {
@@ -261,6 +282,9 @@ func (s *Syncer) Pull(ctx context.Context) (*SyncResult, error) {
 		s.progress(ProgressEvent{Action: "scan", Complete: true})
 		return result, nil
 	}
+
+	// Download manifest for mtime restoration (best-effort, may not exist)
+	manifest, _ := s.downloadManifest(ctx)
 
 	// Build remote file map
 	remoteFiles, skipped := s.buildRemoteMap(remoteObjects)
@@ -343,7 +367,15 @@ func (s *Syncer) Pull(ctx context.Context) (*SyncResult, error) {
 					Total:   total,
 				})
 
-				if err := s.downloadFile(ctx, task.localPath, task.remoteObj.Key); err != nil {
+				// Get original mtime from manifest if available
+				var mtime *time.Time
+				if manifest != nil {
+					if meta, ok := manifest.Files[task.localPath]; ok {
+						mtime = &meta.ModTime
+					}
+				}
+
+				if err := s.downloadFile(ctx, task.localPath, task.remoteObj.Key, mtime); err != nil {
 					s.progress(ProgressEvent{
 						Action: "download",
 						Path:   task.localPath,
@@ -418,7 +450,9 @@ func (s *Syncer) uploadFile(ctx context.Context, relativePath string) error {
 	return nil
 }
 
-func (s *Syncer) downloadFile(ctx context.Context, relativePath, remoteKey string) error {
+// downloadFile downloads and decrypts a file from remote storage.
+// If originalMtime is non-nil, the file's modification time will be restored to that value.
+func (s *Syncer) downloadFile(ctx context.Context, relativePath, remoteKey string, originalMtime *time.Time) error {
 	// Download
 	encrypted, err := s.storage.Download(ctx, remoteKey)
 	if err != nil {
@@ -461,6 +495,14 @@ func (s *Syncer) downloadFile(ctx context.Context, relativePath, remoteKey strin
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
+	// Restore original modification time if provided
+	if originalMtime != nil {
+		if err := os.Chtimes(fullPath, *originalMtime, *originalMtime); err != nil {
+			// Log but don't fail - mtime restoration is best-effort
+			s.log("Warning: failed to restore mtime for %s: %v", relativePath, err)
+		}
+	}
+
 	// Update state
 	info, _ := os.Stat(fullPath)
 	hash, _ := HashFile(fullPath)
@@ -475,11 +517,88 @@ func (s *Syncer) handleConflict(ctx context.Context, relativePath string, remote
 
 	// Download remote version with conflict suffix
 	conflictPath := relativePath + ".conflict." + time.Now().Format("20060102-150405")
-	if err := s.downloadFile(ctx, conflictPath, remoteObj.Key); err != nil {
+	if err := s.downloadFile(ctx, conflictPath, remoteObj.Key, nil); err != nil {
 		return fmt.Errorf("failed to save conflict file: %w", err)
 	}
 
 	return nil
+}
+
+// uploadManifest builds and uploads a manifest containing file mtimes from current state.
+func (s *Syncer) uploadManifest(ctx context.Context) error {
+	manifest := FileManifest{
+		Files: make(map[string]FileMetadata),
+	}
+
+	// Build manifest from current state
+	s.state.mu.Lock()
+	for path, fs := range s.state.Files {
+		manifest.Files[path] = FileMetadata{
+			ModTime: fs.ModTime,
+		}
+	}
+	s.state.mu.Unlock()
+
+	// Serialize manifest
+	data, err := json.Marshal(manifest)
+	if err != nil {
+		return fmt.Errorf("failed to serialize manifest: %w", err)
+	}
+
+	// Compress
+	compressed, err := gzipCompress(data)
+	if err != nil {
+		return fmt.Errorf("failed to compress manifest: %w", err)
+	}
+
+	// Encrypt
+	encrypted, err := s.encryptor.Encrypt(compressed)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt manifest: %w", err)
+	}
+
+	// Upload
+	remoteKey := ManifestKey + ".age"
+	if err := s.storage.Upload(ctx, remoteKey, encrypted); err != nil {
+		return fmt.Errorf("failed to upload manifest: %w", err)
+	}
+
+	return nil
+}
+
+// downloadManifest downloads and parses the file manifest from remote storage.
+// Returns nil if no manifest exists (backward compatibility with older syncs).
+func (s *Syncer) downloadManifest(ctx context.Context) (*FileManifest, error) {
+	remoteKey := ManifestKey + ".age"
+
+	// Download
+	encrypted, err := s.storage.Download(ctx, remoteKey)
+	if err != nil {
+		// Manifest may not exist for older syncs - that's OK
+		return nil, nil
+	}
+
+	// Decrypt
+	data, err := s.encryptor.Decrypt(encrypted)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt manifest: %w", err)
+	}
+
+	// Decompress if gzipped
+	if isGzipped(data) {
+		data, err = gzipDecompress(data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress manifest: %w", err)
+		}
+	}
+
+	// Parse
+	var manifest FileManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return nil, fmt.Errorf("failed to parse manifest: %w", err)
+	}
+
+	return &manifest, nil
 }
 
 func (s *Syncer) remoteKey(relativePath string) string {
@@ -511,6 +630,10 @@ func (s *Syncer) buildRemoteMap(remoteObjects []storage.ObjectInfo) (remoteFiles
 		}
 		// Skip external files (handled by MCP sync)
 		if strings.HasPrefix(localPath, "_external/") {
+			continue
+		}
+		// Skip metadata files (manifest, etc.)
+		if strings.HasPrefix(localPath, "_metadata/") {
 			continue
 		}
 		// Skip excluded paths

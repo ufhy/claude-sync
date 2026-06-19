@@ -108,8 +108,8 @@ func TestSyncerPush_NewFiles(t *testing.T) {
 		t.Errorf("Expected 2 uploads, got %d: %v", len(result.Uploaded), result.Uploaded)
 	}
 
-	// Verify files exist in mock storage
-	objs, _ := store.List(ctx, "")
+	// Verify files exist in mock storage (excluding metadata)
+	objs, _ := store.ListUserObjects(ctx)
 	if len(objs) != 2 {
 		t.Errorf("Expected 2 objects in storage, got %d", len(objs))
 	}

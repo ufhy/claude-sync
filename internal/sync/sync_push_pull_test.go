@@ -101,6 +101,23 @@ func (m *mockStorage) BucketExists(_ context.Context) (bool, error) {
 	return true, nil
 }
 
+// ListUserObjects returns objects excluding metadata (_metadata/) and external (_external/) files.
+// Use this in tests to count only actual synced user files.
+func (m *mockStorage) ListUserObjects(ctx context.Context) ([]storage.ObjectInfo, error) {
+	objs, err := m.List(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	var result []storage.ObjectInfo
+	for _, obj := range objs {
+		if strings.HasPrefix(obj.Key, "_metadata/") || strings.HasPrefix(obj.Key, "_external/") {
+			continue
+		}
+		result = append(result, obj)
+	}
+	return result, nil
+}
+
 // helper to create a test syncer with mock storage and temp dirs
 type testEnv struct {
 	syncer    *Syncer
@@ -194,8 +211,8 @@ func TestPushUploadsNewFiles(t *testing.T) {
 		t.Errorf("Unexpected errors: %v", result.Errors)
 	}
 
-	// Verify files exist in mock storage with .age suffix
-	objs, _ := env.store.List(ctx, "")
+	// Verify files exist in mock storage with .age suffix (excluding metadata)
+	objs, _ := env.store.ListUserObjects(ctx)
 	if len(objs) != 2 {
 		t.Errorf("Expected 2 objects in storage, got %d", len(objs))
 	}
@@ -257,8 +274,8 @@ func TestPushDeletesRemovedFiles(t *testing.T) {
 		t.Errorf("Expected 1 delete, got %d", len(result.Deleted))
 	}
 
-	// Verify removed from storage
-	objs, _ := env.store.List(ctx, "")
+	// Verify removed from storage (excluding metadata)
+	objs, _ := env.store.ListUserObjects(ctx)
 	if len(objs) != 0 {
 		t.Errorf("Expected 0 objects in storage after delete, got %d", len(objs))
 	}
