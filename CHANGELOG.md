@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/tawanorg/claude-sync/compare/v1.13.0...v1.14.0) (2026-06-22)
+
+
+### Features
+
+* improve MCP sync UX and add sync path management ([#48](https://github.com/tawanorg/claude-sync/issues/48)) ([7d20a33](https://github.com/tawanorg/claude-sync/commit/7d20a339d6cbe38a0e59bcbfdd1b49439888b9ac)), closes [#45](https://github.com/tawanorg/claude-sync/issues/45) [#46](https://github.com/tawanorg/claude-sync/issues/46) [#47](https://github.com/tawanorg/claude-sync/issues/47)
+
 # [1.13.0](https://github.com/tawanorg/claude-sync/compare/v1.12.0...v1.13.0) (2026-06-22)
 
 
