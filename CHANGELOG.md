@@ -1,3 +1,10 @@
+## [1.14.2](https://github.com/tawanorg/claude-sync/compare/v1.14.1...v1.14.2) (2026-06-25)
+
+
+### Bug Fixes
+
+* recover from corrupt state file instead of bricking push/pull ([#51](https://github.com/tawanorg/claude-sync/issues/51)) ([aae878c](https://github.com/tawanorg/claude-sync/commit/aae878c48ae74b7c8f04bbeb13b15ba553001dc8)), closes [#50](https://github.com/tawanorg/claude-sync/issues/50) [#50](https://github.com/tawanorg/claude-sync/issues/50)
+
 ## [1.14.1](https://github.com/tawanorg/claude-sync/compare/v1.14.0...v1.14.1) (2026-06-22)
 
 
