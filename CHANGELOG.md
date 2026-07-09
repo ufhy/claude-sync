@@ -1,3 +1,10 @@
+## [1.14.4](https://github.com/tawanorg/claude-sync/compare/v1.14.3...v1.14.4) (2026-07-09)
+
+
+### Bug Fixes
+
+* **security:** address multiple security vulnerabilities ([8fb1b08](https://github.com/tawanorg/claude-sync/commit/8fb1b08223087c7c57e2e2db8ca36c5bb8736831))
+
 ## [1.14.3](https://github.com/tawanorg/claude-sync/compare/v1.14.2...v1.14.3) (2026-07-09)
 
 
