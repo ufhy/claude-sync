@@ -1,3 +1,10 @@
+## [1.14.5](https://github.com/tawanorg/claude-sync/compare/v1.14.4...v1.14.5) (2026-07-09)
+
+
+### Bug Fixes
+
+* **security:** additional hardening for contributor stability ([b41f8f7](https://github.com/tawanorg/claude-sync/commit/b41f8f7822c4092039689dd18fc9af0df5069084))
+
 ## [1.14.4](https://github.com/tawanorg/claude-sync/compare/v1.14.3...v1.14.4) (2026-07-09)
 
 
