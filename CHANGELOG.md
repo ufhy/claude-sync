@@ -1,3 +1,10 @@
+## [1.14.3](https://github.com/tawanorg/claude-sync/compare/v1.14.2...v1.14.3) (2026-07-09)
+
+
+### Bug Fixes
+
+* **webdav:** fall back to Depth: 1 walk when server rejects Depth: infinity ([#53](https://github.com/tawanorg/claude-sync/issues/53)) ([b701b84](https://github.com/tawanorg/claude-sync/commit/b701b8400b36206ae3014b7ffe5ea1b1b3776694)), closes [#52](https://github.com/tawanorg/claude-sync/issues/52)
+
 ## [1.14.2](https://github.com/tawanorg/claude-sync/compare/v1.14.1...v1.14.2) (2026-06-25)
 
 
