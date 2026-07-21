@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/tawanorg/claude-sync/compare/v1.14.6...v1.15.0) (2026-07-21)
+
+
+### Features
+
+* **storage:** add path-style addressing for S3-compatible endpoints ([#61](https://github.com/tawanorg/claude-sync/issues/61)) ([87f126d](https://github.com/tawanorg/claude-sync/commit/87f126d8ad9a075f5a30b958e3d13de758791339))
+
 ## [1.14.6](https://github.com/tawanorg/claude-sync/compare/v1.14.5...v1.14.6) (2026-07-09)
 
 
