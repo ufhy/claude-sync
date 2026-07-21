@@ -325,6 +325,17 @@ func (s *Syncer) Pull(ctx context.Context) (*SyncResult, error) {
 				// Check if local was also modified
 				localHash, _ := HashFile(filepath.Join(s.claudeDir, localPath))
 				if localHash != stateFile.Hash {
+					// Both sides changed. Session logs are append-only with
+					// unique record UUIDs, so we can union them losslessly
+					// instead of dropping one side into a .conflict sidecar.
+					if isSessionJSONL(localPath) {
+						if err := s.mergeSessionJSONL(ctx, localPath, remoteObj); err == nil {
+							s.progress(ProgressEvent{Action: "merged", Path: localPath})
+							continue
+						} else {
+							s.log("Union merge failed for %s (%v); falling back to conflict copy", localPath, err)
+						}
+					}
 					// Conflict: both changed
 					result.Conflicts = append(result.Conflicts, localPath)
 					s.progress(ProgressEvent{
@@ -526,6 +537,73 @@ func (s *Syncer) handleConflict(ctx context.Context, relativePath string, remote
 	}
 
 	return nil
+}
+
+// mergeSessionJSONL losslessly unions a session log that changed on both sides.
+// The remote is fetched in portable form; the local file is normalized into the
+// same space, unioned by record UUID, then resolved back and written. State is
+// deliberately left stale so the next push propagates the union to the remote.
+func (s *Syncer) mergeSessionJSONL(ctx context.Context, relativePath string, remoteObj storage.ObjectInfo) error {
+	localPath := filepath.Join(s.claudeDir, relativePath)
+	localBytes, err := os.ReadFile(localPath)
+	if err != nil {
+		return fmt.Errorf("read local: %w", err)
+	}
+
+	remotePortable, err := s.downloadPortable(ctx, remoteObj.Key)
+	if err != nil {
+		return fmt.Errorf("download remote: %w", err)
+	}
+
+	// Union in portable space so UUID/content keys compare apples-to-apples.
+	localPortable := s.paths.NormalizeContent(localBytes)
+	merged, err := UnionJSONL(localPortable, remotePortable)
+	if err != nil {
+		return err
+	}
+	local := s.paths.ResolveContent(merged)
+
+	tmp, err := os.CreateTemp(filepath.Dir(localPath), ".merge-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if _, err := tmp.Write(local); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpName, 0600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpName, localPath); err != nil {
+		return fmt.Errorf("atomic replace: %w", err)
+	}
+	s.log("Merged session %s (union of local + remote records)", relativePath)
+	return nil
+}
+
+// downloadPortable fetches and decrypts a remote object, decompressing if
+// needed, and returns its bytes WITHOUT resolving portable tokens — so callers
+// that merge across devices can compare in a single canonical space.
+func (s *Syncer) downloadPortable(ctx context.Context, remoteKey string) ([]byte, error) {
+	encrypted, err := s.storage.Download(ctx, remoteKey)
+	if err != nil {
+		return nil, err
+	}
+	data, err := s.encryptor.Decrypt(encrypted)
+	if err != nil {
+		return nil, err
+	}
+	if isGzipped(data) {
+		if data, err = gzipDecompress(data); err != nil {
+			return nil, err
+		}
+	}
+	return data, nil
 }
 
 // uploadManifest builds and uploads a manifest containing file mtimes from current state.
